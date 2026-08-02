@@ -158,6 +158,10 @@ footer{text-align:center;padding:28px 16px 40px;color:var(--muted);font-size:12p
 footer button{background:none;border:0;color:var(--muted);text-decoration:underline;text-underline-offset:3px;cursor:pointer;font-size:12px}
 footer .firma{margin-top:18px;padding-top:14px;border-top:1px solid var(--line-soft);font-size:11px;letter-spacing:.06em;color:#9A9A8E}
 
+.seg{display:flex;gap:4px;background:#E7E5DB;border:1px solid var(--line);border-radius:12px;padding:4px;margin-bottom:14px}
+.seg button{flex:1;background:none;border:0;padding:10px 8px;border-radius:9px;font-weight:600;font-size:14px;color:var(--muted);cursor:pointer;min-height:42px}
+.seg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(18,36,28,.12)}
+
 .warn{background:#FBF1E4;border:1px solid #E6CFA6;color:#6B4E17;padding:12px 14px;border-radius:10px;font-size:14px}
 .note{background:#EDF2EE;border:1px solid #C9DACE;padding:12px 14px;border-radius:10px;font-size:14px}
 
@@ -171,17 +175,15 @@ footer .firma{margin-top:18px;padding-top:14px;border-top:1px solid var(--line-s
   <div class="wrap">
     <div class="brandrow">
       <div>
-        <div class="brand">Pool Damas <span>Más que golf</span></div>
+        <div class="brand">Pool <span>Más que golf</span></div>
         <div class="tagline">RSHECC</div>
       </div>
       <button class="whoami" id="btnQuien">Soy…</button>
     </div>
     <nav class="tabs" id="tabs">
-      <button data-v="jornada" aria-current="true">Jornada</button>
+      <button data-v="jornada" aria-current="true">Inscripción</button>
       <button data-v="handicaps">Hándicaps</button>
-      <button data-v="tarjetas">Tarjetas</button>
       <button data-v="resultados">Resultados</button>
-      <button data-v="general">General</button>
     </nav>
   </div>
 </header>
@@ -284,10 +286,18 @@ function cierreDe(j){
   return d;
 }
 const inscripcionAbierta = j => j.estado === 'abierta' && new Date() < cierreDe(j);
+const suspendida = j => j.estado === 'suspendida';
 
 function proximaJornada(){
   const hoy = new Date().toISOString().slice(0,10);
-  return S.jornadas.find(j => j.fecha >= hoy) || S.jornadas[S.jornadas.length-1] || null;
+  return S.jornadas.find(j => j.fecha >= hoy && !suspendida(j))
+      || S.jornadas.filter(j => !suspendida(j)).pop() || null;
+}
+/** Jornadas suspendidas que quedan por delante de la próxima que se juega. */
+function suspendidasProximas(){
+  const hoy = new Date().toISOString().slice(0,10);
+  const prox = proximaJornada();
+  return S.jornadas.filter(j => suspendida(j) && j.fecha >= hoy && (!prox || j.fecha <= prox.fecha));
 }
 function ultimaConTarjetas(){
   const con = S.jornadas.filter(j => S.tarjetas.some(t => t.jornada === j.id && t.puntos != null));
@@ -335,8 +345,8 @@ function render(){
   document.querySelectorAll('#tabs button').forEach(b =>
     b.setAttribute('aria-current', b.dataset.v === S.vista ? 'true' : 'false'));
   document.getElementById('btnQuien').textContent = S.yo ? S.yo.nombre : 'Soy…';
-  ({ jornada:vJornada, handicaps:vHandicaps, tarjetas:vTarjetas,
-     resultados:vResultados, general:vGeneral, admin:vAdmin }[S.vista] || vJornada)();
+  ({ jornada:vJornada, handicaps:vHandicaps, tarjetas:vAdmin,
+     resultados:vResultados, general:vResultados, admin:vAdmin }[S.vista] || vJornada)();
 }
 
 /* ---------- 1. Jornada ---------- */
@@ -372,6 +382,9 @@ function vJornada(){
   }
 
   main.innerHTML = `
+  ${suspendidasProximas().map(x => `<div class="warn" style="margin-bottom:14px">
+      <strong>${esc(x.id)} · ${fechaLarga(x.fecha)}</strong> — suspendida${x.nota?': '+esc(x.nota):' (festivo)'}.
+      No se juega y no cuenta para la general.</div>`).join('')}
   <div class="card hero">
     <div class="eyebrow">${esc(j.id)} · Temporada ${esc(j.temporada)}</div>
     <div class="fecha">${fechaLarga(j.fecha)}</div>
@@ -511,10 +524,10 @@ function vHandicaps(){
 }
 
 /* ---------- 3. Tarjetas ---------- */
-function vTarjetas(){
+function htmlTarjetas(){
   const cand = S.jornadas.filter(x => x.fecha <= new Date().toISOString().slice(0,10));
   const lista = cand.length ? cand : S.jornadas;
-  if (!lista.length){ main.innerHTML = `<div class="card"><div class="empty"><strong>Sin jornadas</strong>Aún no hay calendario.</div></div>`; return; }
+  if (!lista.length) return `<div class="note">Aún no hay calendario.</div>`;
   if (!S.jTarj || !lista.some(x=>x.id===S.jTarj)) S.jTarj = lista[lista.length-1].id;
   const j = S.jornadas.find(x => x.id === S.jTarj);
   const campo = campoDe(j.recorrido, j.barras);
@@ -522,14 +535,14 @@ function vTarjetas(){
   const ids = inscritas.length ? inscritas : S.jugadoras.filter(x=>x.activa).map(x=>x.id);
   const procesada = j.estado === 'procesada';
 
-  main.innerHTML = `
-  <div class="card flat">
+  return `
+  <div class="card flat" style="padding:0 0 12px;box-shadow:none;border:0;background:none">
     <label class="field" for="selJT">Jornada</label>
     <select id="selJT">${lista.map(x=>`<option value="${x.id}" ${x.id===j.id?'selected':''}>
       ${esc(x.id)} · ${fechaCorta(x.fecha)}${x.recorrido?' · '+esc(x.recorrido):''}</option>`).join('')}</select>
     <p class="small muted" style="margin:10px 0 0">
       Sube la foto de la tarjeta y escribe los puntos stableford que están rodeados con un círculo.
-      Puedes hacerlo por cualquier compañera.</p>
+      Puedes hacerlo por cualquier jugadora.</p>
   </div>
 
   ${procesada ? `<div class="warn">Esta jornada ya está procesada y los hándicaps se han actualizado.
@@ -571,8 +584,6 @@ function vTarjetas(){
     </div>`;
   }).join('')}
   </div>`;
-
-  document.getElementById('selJT').onchange = e => { S.jTarj = e.target.value; render(); };
 }
 
 async function guardarTarjeta(id){
@@ -649,17 +660,26 @@ function clasificacionJornada(jid){
 }
 
 function vResultados(){
+  const modo = S.modoRes === 'general' ? 'general' : 'jornada';
+  main.innerHTML = `
+    <div class="seg">
+      <button class="${modo==='jornada'?'on':''}" onclick="S.modoRes='jornada';render()">Por jornada</button>
+      <button class="${modo==='general'?'on':''}" onclick="S.modoRes='general';render()">General</button>
+    </div>` + (modo === 'jornada' ? htmlJornada() : htmlGeneral());
+  const sel = document.getElementById('selJR');
+  if (sel) sel.onchange = e => { S.jRes = e.target.value; render(); };
+}
+
+function htmlJornada(){
   const con = S.jornadas.filter(j => S.tarjetas.some(t => t.jornada===j.id && t.puntos != null));
-  if (!con.length){
-    main.innerHTML = `<div class="card"><div class="empty"><strong>Todavía sin resultados</strong>
+  if (!con.length)
+    return `<div class="card"><div class="empty"><strong>Todavía sin resultados</strong>
       Aparecerán en cuanto se suban las primeras tarjetas.</div></div>`;
-    return;
-  }
   if (!S.jRes || !con.some(x=>x.id===S.jRes)) S.jRes = con[con.length-1].id;
   const j = S.jornadas.find(x => x.id === S.jRes);
   const cl = clasificacionJornada(j.id);
 
-  main.innerHTML = `
+  return `
   <div class="card flat">
     <label class="field" for="selJR">Jornada</label>
     <select id="selJR">${con.map(x=>`<option value="${x.id}" ${x.id===j.id?'selected':''}>
@@ -686,8 +706,6 @@ function vResultados(){
     </table></div>
   </div>
   <p class="small muted">Empates a puntos: gana el hándicap exacto más bajo.</p>`;
-
-  document.getElementById('selJR').onchange = e => { S.jRes = e.target.value; render(); };
 }
 
 /* ---------- 5. Clasificación general ---------- */
@@ -705,19 +723,18 @@ function general(){
   }).sort((a,b) => b.total - a.total || b.jugadas - a.jugadas || Number(a.hcp_exacto)-Number(b.hcp_exacto));
 }
 
-function vGeneral(){
+function htmlGeneral(){
   const N = parseInt(S.config.mejores_jornadas || '10', 10);
   const g = general();
-  if (!g.some(p => p.jugadas)){
-    main.innerHTML = `<div class="card"><div class="empty"><strong>La general aún está vacía</strong>
+  if (!g.some(p => p.jugadas))
+    return `<div class="card"><div class="empty"><strong>La general aún está vacía</strong>
       Se irá llenando conforme se jueguen las jornadas.</div></div>`;
-    return;
-  }
-  main.innerHTML = `
+
+  return `
   <div class="card flat">
     <div class="eyebrow">Clasificación general</div>
     <p class="small muted" style="margin:4px 0 0">Suma de las <strong>${N} mejores</strong> jornadas de cada jugadora.
-      Toca un nombre para ver su detalle.</p>
+      Despliega un nombre para ver todas sus tarjetas.</p>
   </div>
 
   <div class="card" style="padding:0;overflow:hidden">
@@ -784,9 +801,31 @@ function vAdmin(){
 
   main.innerHTML = `
   <div class="card flat"><div class="eyebrow">Administración</div>
-    <p class="small muted" style="margin:4px 0 0">Calendario, jugadoras y revisión de hándicaps.</p></div>
+    <p class="small muted" style="margin:4px 0 0">Tarjetas, hándicaps, calendario y jugadoras.</p></div>
 
-  <details class="acc" open><summary>Jugadoras <span class="mono muted">${S.jugadoras.length}</span></summary><div>
+  ${j ? `<div class="card">
+    <div class="eyebrow">Próxima jornada</div>
+    <div class="row" style="margin-top:6px">
+      <div><div style="font-weight:600">${esc(j.id)} · ${fechaLarga(j.fecha)}</div>
+        <div class="small muted">${j.recorrido ? 'Campo '+esc(j.recorrido) : 'Recorrido sin fijar'} · ${esc(j.estado)}</div></div>
+      <button class="btn danger sm" onclick="suspenderJornada('${esc(j.id)}')">Suspender</button>
+    </div>
+    <p class="small muted" style="margin:12px 0 0">Suspéndela si cae en festivo en Madrid. Desaparece de las
+      inscripciones y no cuenta para la general; puedes reactivarla desde el calendario.</p>
+  </div>` : ''}
+
+  <details class="acc" open><summary>Tarjetas y resultados</summary><div>
+    ${htmlTarjetas()}
+  </div></details>
+
+  <details class="acc" open><summary>Revisión de hándicaps</summary><div>
+    <label class="field" for="selJA">Jornada a procesar</label>
+    <select id="selJA">${S.jornadas.map(x=>`<option value="${x.id}" ${j&&x.id===j.id?'selected':''}>
+      ${esc(x.id)} · ${fechaCorta(x.fecha)} · ${x.estado}</option>`).join('')}</select>
+    <div id="previaHcp" style="margin-top:14px"></div>
+  </div></details>
+
+  <details class="acc"><summary>Jugadoras <span class="mono muted">${S.jugadoras.length}</span></summary><div>
     <div class="stack">${S.jugadoras.map(p=>`
       <div style="border:1px solid var(--line-soft);border-radius:12px;padding:12px">
         <div class="grid3" style="align-items:end;gap:8px">
@@ -833,20 +872,14 @@ function vAdmin(){
           <option value="Norte" ${x.recorrido==='Norte'?'selected':''}>Norte</option>
           <option value="Sur" ${x.recorrido==='Sur'?'selected':''}>Sur</option>
         </select>
-        <select style="flex:1;min-width:120px" onchange="editarJornada('${esc(x.id)}','estado',this.value)">
+        <select style="flex:1;min-width:130px" onchange="editarJornada('${esc(x.id)}','estado',this.value)">
           <option value="abierta" ${x.estado==='abierta'?'selected':''}>Inscripción abierta</option>
           <option value="cerrada" ${x.estado==='cerrada'?'selected':''}>Cerrada</option>
+          <option value="suspendida" ${x.estado==='suspendida'?'selected':''}>Suspendida (festivo)</option>
           <option value="procesada" ${x.estado==='procesada'?'selected':''}>Procesada</option>
         </select>
         <button class="btn ghost sm" onclick="borrarJornada('${esc(x.id)}')" aria-label="Eliminar ${esc(x.id)}">Quitar</button>
       </div>`).join('')}</div>
-  </div></details>
-
-  <details class="acc" open><summary>Revisión de hándicaps</summary><div>
-    <label class="field" for="selJA">Jornada a procesar</label>
-    <select id="selJA">${S.jornadas.map(x=>`<option value="${x.id}" ${j&&x.id===j.id?'selected':''}>
-      ${esc(x.id)} · ${fechaCorta(x.fecha)} · ${x.estado}</option>`).join('')}</select>
-    <div id="previaHcp" style="margin-top:14px"></div>
   </div></details>
 
   <details class="acc"><summary>Ajustes</summary><div>
@@ -861,9 +894,21 @@ function vAdmin(){
     <button class="btn ghost wide sm" style="margin-top:8px" onclick="S.admin=false;S.vista='jornada';render()">Salir de administración</button>
   </div></details>`;
 
+  const selT = document.getElementById('selJT');
+  if (selT) selT.onchange = e => { S.jTarj = e.target.value; render(); };
   const sel = document.getElementById('selJA');
   sel.onchange = () => previaHandicaps(sel.value);
   previaHandicaps(sel.value);
+}
+
+async function suspenderJornada(id){
+  const j = S.jornadas.find(x => x.id === id);
+  if (!confirm(`¿Suspender la jornada ${id} del ${fechaLarga(j.fecha)}?\n\nDesaparecerá de las inscripciones.`)) return;
+  const motivo = prompt('Motivo (opcional)', 'Festivo en Madrid');
+  const { error } = await db.from('jornadas').update({ estado:'suspendida', nota:motivo || null }).eq('id', id);
+  if (error) return aviso('No se pudo suspender', 'err');
+  await db.from('inscripciones').delete().eq('jornada', id);
+  await cargar(); S.vista = 'admin'; render(); aviso('Jornada suspendida');
 }
 
 function previaHandicaps(jid){
