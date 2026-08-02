@@ -457,11 +457,56 @@ async function cambiarInscripcion(alta){
 
 /* ---------- 2. Hándicaps ---------- */
 function vHandicaps(){
+  const modo = S.modoHcp === 'evolucion' ? 'evolucion' : 'actuales';
+  main.innerHTML = `
+    <div class="seg">
+      <button class="${modo==='actuales'?'on':''}" onclick="S.modoHcp='actuales';render()">Vigentes</button>
+      <button class="${modo==='evolucion'?'on':''}" onclick="S.modoHcp='evolucion';render()">Evolución</button>
+    </div>` + (modo === 'actuales' ? htmlHcpActuales() : htmlEvolucion());
+}
+
+function htmlEvolucion(){
+  const js = jornadasInforme().filter(j => S.historial.some(h => h.jornada === j.id));
+  const activas = S.jugadoras.filter(p => p.activa);
+  if (!js.length)
+    return `<div class="card"><div class="empty"><strong>Aún no hay historial</strong>
+      La tabla se irá construyendo cada vez que se procese una jornada.</div></div>`;
+
+  return `
+  <div class="card flat">
+    <div class="eyebrow">Evolución de hándicaps</div>
+    <p class="small muted" style="margin:4px 0 0">Hándicap exacto con el que cada jugadora disputó cada jornada.
+      La última columna es el que tiene ahora mismo.</p>
+  </div>
+
+  <div class="card" style="padding:0;overflow:hidden">
+    <div class="scroller" style="margin:0;padding:0">
+    <table class="sheet" style="font-size:13px">
+      <thead><tr><th style="position:sticky;left:0;background:var(--ink)">Jugadora</th>
+        <th class="num">Inicio</th>
+        ${js.map(j => `<th class="num">${fechaCorta(j.fecha)}</th>`).join('')}
+        <th class="num">Actual</th></tr></thead>
+      <tbody>${activas.map(p => `<tr class="${S.yo&&p.id===S.yo.id?'yo':''}">
+        <td class="name" style="position:sticky;left:0;background:${S.yo&&p.id===S.yo.id?'#FBF3F1':'#fff'};white-space:nowrap">${esc(corto(p))}</td>
+        <td class="num mono muted">${Number(p.hcp_inicial).toFixed(1)}</td>
+        ${js.map(j => { const h = S.historial.find(x => x.jornada===j.id && x.jugadora===p.id);
+          return `<td class="num mono">${h ? Number(h.hcp_antes).toFixed(1) : '<span class="muted">·</span>'}</td>`; }).join('')}
+        <td class="num mono" style="font-weight:600">${Number(p.hcp_exacto).toFixed(1)}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+  </div>
+
+  <button class="btn ghost wide sm" onclick="pdfEvolucion()">Descargar en PDF</button>
+  <p class="small muted" style="margin-top:10px">Un punto indica que esa jugadora no jugó esa jornada,
+    así que su hándicap no varió.</p>`;
+}
+
+function htmlHcpActuales(){
   const j = proximaJornada();
   const norte = campoDe('Norte','Rojas'), sur = campoDe('Sur','Rojas');
   const activas = S.jugadoras.filter(x => x.activa);
 
-  main.innerHTML = `
+  return `
   <div class="card flat">
     <div class="eyebrow">Hándicaps vigentes</div>
     <p class="small muted" style="margin:4px 0 0">
@@ -757,7 +802,125 @@ function htmlGeneral(){
           ${esc(r.jornada)} · ${r.puntos}</span>`).join('')}</div>
         <p class="small muted" style="margin:12px 0 0">En rojo, las ${N} que puntúan.</p>
       </div></details>`).join('')}
+
+  <button class="btn ghost wide sm" onclick="pdfGeneral()">Descargar la general en PDF</button>
   `;
+}
+
+/* ============================================================
+   Informes en PDF
+   ============================================================ */
+function cargarScript(src){
+  return new Promise((ok, ko) => {
+    const s = document.createElement('script');
+    s.src = src; s.onload = ok; s.onerror = () => ko(new Error(src));
+    document.head.appendChild(s);
+  });
+}
+async function libreriaPdf(){
+  if (window.jspdf && window.jspdf.jsPDF) return;
+  await cargarScript('https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js');
+  await cargarScript('https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js');
+}
+
+/** Cabecera común de los dos informes. */
+function encabezado(doc, titulo, subtitulo){
+  doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(18,36,28);
+  doc.text('RSHECC Pool Damas \u00ABM\u00E1s que golf\u00BB', 14, 13);
+  doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(110,110,98);
+  doc.text(titulo + ' \u00B7 Temporada ' + (S.config.temporada_actual||''), 14, 19);
+  if (subtitulo) doc.text(subtitulo, 14, 24);
+}
+function pieInforme(doc){
+  const n = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= n; i++){
+    doc.setPage(i);
+    doc.setFont('helvetica','normal'); doc.setFontSize(7); doc.setTextColor(150,150,140);
+    const h = doc.internal.pageSize.getHeight(), w = doc.internal.pageSize.getWidth();
+    doc.text('Generado el ' + new Date().toLocaleDateString('es-ES'), 14, h - 8);
+    doc.text('Web desarrollada por Golfista Curioso', w - 14, h - 8, { align:'right' });
+  }
+}
+const jornadasInforme = () => S.jornadas.filter(j => j.estado !== 'suspendida');
+
+async function pdfGeneral(){
+  try { aviso('Preparando el PDF\u2026'); await libreriaPdf(); }
+  catch(e){ return aviso('No se pudo cargar el generador de PDF', 'err'); }
+  const N = parseInt(S.config.mejores_jornadas || '10', 10);
+  const js = jornadasInforme(), g = general();
+  const doc = new window.jspdf.jsPDF({ orientation:'landscape', unit:'mm', format:'a4' });
+  encabezado(doc, 'Clasificaci\u00F3n general',
+    'Suma de las ' + N + ' mejores jornadas. En rojo, las tarjetas que puntúan.');
+
+  const head = [
+    ['', ...js.map(j => j.recorrido ? j.recorrido[0] : ''), '', ''],
+    ['Jugadora', ...js.map(j => fechaCorta(j.fecha)), 'Total', 'Hcp']
+  ];
+  const body = g.map(p => [
+    corto(p),
+    ...js.map(j => { const r = p.res.find(x => x.jornada === j.id); return r ? String(r.puntos) : ''; }),
+    String(p.total), Number(p.hcp_exacto).toFixed(1)
+  ]);
+
+  doc.autoTable({
+    head, body, startY: 28, theme:'grid',
+    styles:{ font:'helvetica', fontSize:6.2, cellPadding:1, halign:'center',
+             lineColor:[216,214,202], lineWidth:0.1, textColor:[18,36,28] },
+    headStyles:{ fillColor:[18,36,28], textColor:[255,255,255], fontSize:5.8, fontStyle:'bold' },
+    alternateRowStyles:{ fillColor:[247,246,240] },
+    columnStyles:{ 0:{ halign:'left', cellWidth:26, fontStyle:'bold' } },
+    didParseCell: d => {
+      if (d.section !== 'body') return;
+      const i = d.column.index;
+      if (i === 0) return;
+      if (i === js.length + 1){ d.cell.styles.fontStyle = 'bold'; d.cell.styles.fillColor = [237,236,228]; return; }
+      if (i === js.length + 2){ d.cell.styles.textColor = [110,110,98]; return; }
+      const jug = g[d.row.index], j = js[i-1];
+      if (jug && j && jug.cuentan.has(j.id)){
+        d.cell.styles.textColor = [190,58,43]; d.cell.styles.fontStyle = 'bold';
+      } else if (!d.cell.text[0]){
+        d.cell.styles.fillColor = [250,250,247];
+      }
+    }
+  });
+  pieInforme(doc);
+  doc.save('general-pool-mas-que-golf.pdf');
+  aviso('PDF descargado');
+}
+
+async function pdfEvolucion(){
+  try { aviso('Preparando el PDF\u2026'); await libreriaPdf(); }
+  catch(e){ return aviso('No se pudo cargar el generador de PDF', 'err'); }
+  const js = jornadasInforme().filter(j => S.historial.some(h => h.jornada === j.id));
+  const doc = new window.jspdf.jsPDF({ orientation:'landscape', unit:'mm', format:'a4' });
+  encabezado(doc, 'Evoluci\u00F3n de h\u00E1ndicaps',
+    'H\u00E1ndicap exacto con el que cada jugadora disput\u00F3 cada jornada.');
+
+  const head = [['Jugadora', 'Inicio', ...js.map(j => fechaCorta(j.fecha)), 'Actual']];
+  const body = S.jugadoras.filter(p => p.activa).map(p => [
+    corto(p), Number(p.hcp_inicial).toFixed(1),
+    ...js.map(j => { const h = S.historial.find(x => x.jornada===j.id && x.jugadora===p.id);
+                     return h ? Number(h.hcp_antes).toFixed(1) : ''; }),
+    Number(p.hcp_exacto).toFixed(1)
+  ]);
+
+  doc.autoTable({
+    head, body, startY: 28, theme:'grid',
+    styles:{ font:'helvetica', fontSize:6.2, cellPadding:1, halign:'center',
+             lineColor:[216,214,202], lineWidth:0.1, textColor:[18,36,28] },
+    headStyles:{ fillColor:[18,36,28], textColor:[255,255,255], fontSize:5.8, fontStyle:'bold' },
+    alternateRowStyles:{ fillColor:[247,246,240] },
+    columnStyles:{ 0:{ halign:'left', cellWidth:26, fontStyle:'bold' },
+                   1:{ textColor:[110,110,98] } },
+    didParseCell: d => {
+      if (d.section === 'body' && d.column.index === head[0].length - 1){
+        d.cell.styles.fontStyle = 'bold'; d.cell.styles.fillColor = [237,236,228];
+      }
+    }
+  });
+  pieInforme(doc);
+  doc.save('evolucion-handicaps-pool.pdf');
+  aviso('PDF descargado');
 }
 
 /* ============================================================
