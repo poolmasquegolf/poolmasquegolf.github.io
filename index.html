@@ -158,6 +158,7 @@ footer{text-align:center;padding:28px 16px 40px;color:var(--muted);font-size:12p
 footer button{background:none;border:0;color:var(--muted);text-decoration:underline;text-underline-offset:3px;cursor:pointer;font-size:12px}
 footer .firma{margin-top:18px;padding-top:14px;border-top:1px solid var(--line-soft);font-size:11px;letter-spacing:.06em;color:#9A9A8E}
 
+select.destacado{background:#FBF3DF;border-color:#E3D3A8;font-weight:600;color:#4A3A12}
 .seg{display:flex;gap:4px;background:#E7E5DB;border:1px solid var(--line);border-radius:12px;padding:4px;margin-bottom:14px}
 .seg button{flex:1;background:none;border:0;padding:10px 8px;border-radius:9px;font-weight:600;font-size:14px;color:var(--muted);cursor:pointer;min-height:42px}
 .seg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(18,36,28,.12)}
@@ -570,10 +571,12 @@ function htmlHcpActuales(){
 
 /* ---------- 3. Tarjetas ---------- */
 function htmlTarjetas(){
-  const cand = S.jornadas.filter(x => x.fecha <= new Date().toISOString().slice(0,10));
-  const lista = cand.length ? cand : S.jornadas;
+  const lista = S.jornadas.filter(x => x.estado !== 'suspendida');
   if (!lista.length) return `<div class="note">Aún no hay calendario.</div>`;
-  if (!S.jTarj || !lista.some(x=>x.id===S.jTarj)) S.jTarj = lista[lista.length-1].id;
+  if (!S.jTarj || !lista.some(x=>x.id===S.jTarj)){
+    const prox = proximaJornada();
+    S.jTarj = (prox && lista.some(x=>x.id===prox.id)) ? prox.id : lista[lista.length-1].id;
+  }
   const j = S.jornadas.find(x => x.id === S.jTarj);
   const campo = campoDe(j.recorrido, j.barras);
   const inscritas = S.inscripciones.filter(i => i.jornada === j.id).map(i => i.jugadora);
@@ -583,7 +586,7 @@ function htmlTarjetas(){
   return `
   <div class="card flat" style="padding:0 0 12px;box-shadow:none;border:0;background:none">
     <label class="field" for="selJT">Jornada</label>
-    <select id="selJT">${lista.map(x=>`<option value="${x.id}" ${x.id===j.id?'selected':''}>
+    <select id="selJT" class="destacado">${lista.map(x=>`<option value="${x.id}" ${x.id===j.id?'selected':''}>
       ${esc(x.id)} · ${fechaCorta(x.fecha)}${x.recorrido?' · '+esc(x.recorrido):''}</option>`).join('')}</select>
     <p class="small muted" style="margin:10px 0 0">
       Sube la foto de la tarjeta y escribe los puntos stableford que están rodeados con un círculo.
@@ -625,10 +628,19 @@ function htmlTarjetas(){
           </div>
         </div>
       </div>
-      <button class="btn wide sm" style="margin-top:12px" onclick="guardarTarjeta('${esc(id)}')">Guardar</button>
+      <div class="grid2" style="margin-top:12px">
+        <button class="btn sm" onclick="guardarTarjeta('${esc(id)}')">Guardar</button>
+        <button class="btn ghost sm" onclick="vaciarPuntos('${esc(id)}')" ${t.puntos==null?'disabled':''}>Dejar en —</button>
+      </div>
     </div>`;
   }).join('')}
   </div>`;
+}
+
+async function vaciarPuntos(id){
+  const campo = document.getElementById('pt_'+id);
+  if (campo) campo.value = '';
+  await guardarTarjeta(id);
 }
 
 async function guardarTarjeta(id){
