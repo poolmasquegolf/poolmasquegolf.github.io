@@ -18,6 +18,7 @@
   --line-soft:#E8E6DC;
   --rojo:#BE3A2B;
   --rojo-soft:#F6E4E1;
+  --rosa:#EF9BB2;
   --sage:#6F8A72;
   --muted:#6E6E62;
   --gold:#9C7B22;
@@ -45,10 +46,9 @@ button{font-family:inherit;font-size:inherit}
 header.top{background:var(--ink);color:#EFEFE7;padding:20px 0 0}
 header.top .wrap{padding-bottom:0}
 .brandrow{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
-.brand{font-family:'Bricolage Grotesque';font-weight:800;font-size:22px;letter-spacing:-.03em;line-height:1}
-.brand span{color:var(--rojo)}
-.tagline{font-size:12px;color:#93A79A;letter-spacing:.03em;margin-top:5px}
-.tagline em{font-style:italic;color:#C9D5CD}
+.brand{font-family:'Bricolage Grotesque';font-weight:800;font-size:22px;letter-spacing:-.03em;line-height:1.12;color:#fff}
+.brand span{color:var(--rosa)}
+.tagline{font-size:12px;color:#93A79A;letter-spacing:.14em;margin-top:6px;font-weight:600}
 .whoami{font-size:13px;color:#A9B8AE;background:none;border:0;padding:6px 0;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
 nav.tabs{display:flex;gap:2px;overflow-x:auto;margin-top:14px;scrollbar-width:none;-ms-overflow-style:none}
 nav.tabs::-webkit-scrollbar{display:none}
@@ -156,12 +156,13 @@ details.acc>div{padding:0 16px 16px}
 
 footer{text-align:center;padding:28px 16px 40px;color:var(--muted);font-size:12px}
 footer button{background:none;border:0;color:var(--muted);text-decoration:underline;text-underline-offset:3px;cursor:pointer;font-size:12px}
+footer .firma{margin-top:18px;padding-top:14px;border-top:1px solid var(--line-soft);font-size:11px;letter-spacing:.06em;color:#9A9A8E}
 
 .warn{background:#FBF1E4;border:1px solid #E6CFA6;color:#6B4E17;padding:12px 14px;border-radius:10px;font-size:14px}
 .note{background:#EDF2EE;border:1px solid #C9DACE;padding:12px 14px;border-radius:10px;font-size:14px}
 
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
-@media (max-width:420px){.grid3{grid-template-columns:1fr 1fr}.hero .fecha{font-size:26px}}
+@media (max-width:420px){.grid3{grid-template-columns:1fr 1fr}.hero .fecha{font-size:26px}.brand{font-size:19px}}
 </style>
 </head>
 <body>
@@ -170,8 +171,8 @@ footer button{background:none;border:0;color:var(--muted);text-decoration:underl
   <div class="wrap">
     <div class="brandrow">
       <div>
-        <div class="brand">Pool <span>Damas</span></div>
-        <div class="tagline">RSHECC · <em>Más que golf</em></div>
+        <div class="brand">Pool Damas <span>Más que golf</span></div>
+        <div class="tagline">RSHECC</div>
       </div>
       <button class="whoami" id="btnQuien">Soy…</button>
     </div>
@@ -190,6 +191,7 @@ footer button{background:none;border:0;color:var(--muted);text-decoration:underl
 <footer>
   RSHECC Pool Damas «Más que golf» · Los lunes en la Hípica<br>
   <button id="btnAdmin">Administración</button>
+  <div class="firma">Web desarrollada por Golfista Curioso</div>
 </footer>
 
 <div class="toast" id="toast"></div>
