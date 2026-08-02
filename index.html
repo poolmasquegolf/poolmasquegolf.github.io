@@ -585,9 +585,23 @@ function htmlTarjetas(){
 
   return `
   <div class="card flat" style="padding:0 0 12px;box-shadow:none;border:0;background:none">
-    <label class="field" for="selJT">Jornada</label>
-    <select id="selJT" class="destacado">${lista.map(x=>`<option value="${x.id}" ${x.id===j.id?'selected':''}>
-      ${esc(x.id)} · ${fechaCorta(x.fecha)}${x.recorrido?' · '+esc(x.recorrido):''}</option>`).join('')}</select>
+    <div class="grid2">
+      <div>
+        <label class="field" for="selJT">Jornada</label>
+        <select id="selJT" class="destacado">${lista.map(x=>`<option value="${x.id}" ${x.id===j.id?'selected':''}>
+          ${esc(x.id)} · ${fechaCorta(x.fecha)}</option>`).join('')}</select>
+      </div>
+      <div>
+        <label class="field" for="selRec">Campo jugado</label>
+        <select id="selRec" class="destacado" onchange="fijarRecorrido('${esc(j.id)}', this.value)">
+          <option value="" ${!j.recorrido?'selected':''}>Sin fijar</option>
+          <option value="Norte" ${j.recorrido==='Norte'?'selected':''}>Norte</option>
+          <option value="Sur" ${j.recorrido==='Sur'?'selected':''}>Sur</option>
+        </select>
+      </div>
+    </div>
+    ${!campo ? `<div class="warn" style="margin-top:10px">Elige el campo antes de anotar los puntos:
+      sin él no se puede calcular el hándicap de juego.</div>` : ''}
     <p class="small muted" style="margin:10px 0 0">
       Sube la foto de la tarjeta y escribe los puntos stableford que están rodeados con un círculo.
       Puedes hacerlo por cualquier jugadora.</p>
@@ -635,6 +649,28 @@ function htmlTarjetas(){
     </div>`;
   }).join('')}
   </div>`;
+}
+
+/** Fija el recorrido de una jornada y rehace los hándicaps de juego ya anotados. */
+async function fijarRecorrido(jid, valor){
+  const rec = valor || null;
+  const { error } = await db.from('jornadas').update({ recorrido: rec }).eq('id', jid);
+  if (error) return aviso('No se pudo guardar el campo', 'err');
+  const j = S.jornadas.find(x => x.id === jid); if (j) j.recorrido = rec;
+  const campo = campoDe(rec, j ? j.barras : 'Rojas');
+  const afectadas = S.tarjetas.filter(t => t.jornada === jid);
+  for (const t of afectadas){
+    const p = S.jugadoras.find(x => x.id === t.jugadora);
+    const hExacto = t.hcp_exacto != null ? Number(t.hcp_exacto) : (p ? Number(p.hcp_exacto) : null);
+    const hj = (campo && hExacto != null) ? hcpJuego(hExacto, campo) : null;
+    if (hj === t.hcp_juego) continue;
+    const { error:e2 } = await db.from('tarjetas').update({ hcp_juego: hj })
+      .eq('jornada', jid).eq('jugadora', t.jugadora);
+    if (e2) return aviso('No se pudieron recalcular los hándicaps de juego', 'err');
+    t.hcp_juego = hj;
+  }
+  render();
+  aviso(rec ? `Campo ${rec} guardado` : 'Campo sin fijar');
 }
 
 async function vaciarPuntos(id){
@@ -979,17 +1015,6 @@ function vAdmin(){
   <div class="card flat"><div class="eyebrow">Administración</div>
     <p class="small muted" style="margin:4px 0 0">Tarjetas, hándicaps, calendario y jugadoras.</p></div>
 
-  ${j ? `<div class="card">
-    <div class="eyebrow">Próxima jornada</div>
-    <div class="row" style="margin-top:6px">
-      <div><div style="font-weight:600">${esc(j.id)} · ${fechaLarga(j.fecha)}</div>
-        <div class="small muted">${j.recorrido ? 'Campo '+esc(j.recorrido) : 'Recorrido sin fijar'} · ${esc(j.estado)}</div></div>
-      <button class="btn danger sm" onclick="suspenderJornada('${esc(j.id)}')">Suspender</button>
-    </div>
-    <p class="small muted" style="margin:12px 0 0">Suspéndela si cae en festivo en Madrid. Desaparece de las
-      inscripciones y no cuenta para la general; puedes reactivarla desde el calendario.</p>
-  </div>` : ''}
-
   <details class="acc" open><summary>Tarjetas y resultados</summary><div>
     ${htmlTarjetas()}
   </div></details>
@@ -1000,6 +1025,17 @@ function vAdmin(){
       ${esc(x.id)} · ${fechaCorta(x.fecha)} · ${x.estado}</option>`).join('')}</select>
     <div id="previaHcp" style="margin-top:14px"></div>
   </div></details>
+
+  ${j ? `<div class="card">
+    <div class="eyebrow">Próxima jornada</div>
+    <div class="row" style="margin-top:6px">
+      <div><div style="font-weight:600">${esc(j.id)} · ${fechaLarga(j.fecha)}</div>
+        <div class="small muted">${j.recorrido ? 'Campo '+esc(j.recorrido) : 'Recorrido sin fijar'} · ${esc(j.estado)}</div></div>
+      <button class="btn danger sm" onclick="suspenderJornada('${esc(j.id)}')">Suspender</button>
+    </div>
+    <p class="small muted" style="margin:12px 0 0">Suspéndela si cae en festivo en Madrid. Desaparece de las
+      inscripciones y no cuenta para la general; puedes reactivarla desde el calendario.</p>
+  </div>` : ''}
 
   <details class="acc"><summary>Jugadoras <span class="mono muted">${S.jugadoras.length}</span></summary><div>
     <div class="stack">${S.jugadoras.map(p=>`
