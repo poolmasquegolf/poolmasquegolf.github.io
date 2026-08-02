@@ -790,8 +790,9 @@ async function entrarAdmin(){
   if (S.admin){ S.vista='admin'; return render(); }
   const clave = prompt('Clave de administración');
   if (clave == null) return;
-  const { data, error } = await db.rpc('es_admin', { clave });
-  if (error || !data) return aviso('Clave incorrecta', 'err');
+  const { data, error } = await db.rpc('es_admin', { clave: clave.trim() });
+  if (error){ console.error(error); return aviso('No se pudo comprobar la clave: ' + error.message, 'err'); }
+  if (!data) return aviso('Clave incorrecta', 'err');
   S.admin = true; S.vista = 'admin'; render();
 }
 
