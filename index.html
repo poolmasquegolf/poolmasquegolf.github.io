@@ -775,7 +775,7 @@ function htmlJornada(){
   return `
   <div class="card flat">
     <label class="field" for="selJR">Jornada</label>
-    <select id="selJR">${con.map(x=>`<option value="${x.id}" ${x.id===j.id?'selected':''}>
+    <select id="selJR">${[...con].reverse().map(x=>`<option value="${x.id}" ${x.id===j.id?'selected':''}>
       ${esc(x.id)} · ${fechaCorta(x.fecha)}${x.recorrido?' · '+esc(x.recorrido):''}</option>`).join('')}</select>
   </div>
 
