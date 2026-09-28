@@ -93,6 +93,7 @@ label.field{display:block;font-size:13px;font-weight:600;color:var(--muted);marg
 .chip{display:inline-block;font-size:12px;font-weight:600;padding:4px 10px;border-radius:100px;border:1px solid var(--line)}
 .chip.norte{background:#E7EFE8;border-color:#C4D6C7;color:#2C5136}
 .chip.sur{background:#F3EBDD;border-color:#DFCDAF;color:#6B4E17}
+.chip.mixta{background:#EAE7F2;border-color:#CBC3DE;color:#4A3E6B}
 .chip.rojo{background:var(--rojo-soft);border-color:#EBC3BD;color:var(--rojo)}
 .chip.ok{background:#E7EFE8;border-color:#C4D6C7;color:#2C5136}
 
@@ -366,7 +367,7 @@ function vJornada(){
   const campo = campoDe(j.recorrido, j.barras);
 
   const chipRec = j.recorrido
-    ? `<span class="chip ${j.recorrido==='Norte'?'norte':'sur'}">Campo ${j.recorrido}</span>
+    ? `<span class="chip ${j.recorrido==='Norte'?'norte':(j.recorrido==='Sur'?'sur':'mixta')}">Campo ${j.recorrido}</span>
        <span class="chip">Barras ${esc(j.barras)}</span>`
     : `<span class="chip">Recorrido por confirmar</span>`;
 
@@ -411,17 +412,19 @@ function vJornada(){
     <div class="eyebrow">Tu hándicap para esta jornada</div>
     ${S.yo ? (() => {
       const h = Number(S.yo.hcp_exacto);
-      const cN = campoDe('Norte', j.barras), cS = campoDe('Sur', j.barras);
+      const cN = campoDe('Norte', j.barras), cS = campoDe('Sur', j.barras), cM = campoDe('Mixto', j.barras);
       const caja = (etq, val, activo) => `<div style="text-align:center;padding:12px 6px;border:1px solid ${activo?'var(--rojo)':'var(--line)'};border-radius:12px;background:${activo?'var(--rojo-soft)':'#fff'}">
           <div class="small muted">${etq}</div>
           <div class="mono" style="font-size:28px;font-weight:600;${activo?'color:var(--rojo)':''}">${val}</div></div>`;
-      return `<div class="grid3" style="margin-top:10px">
-          ${caja('Exacto', h.toFixed(1), false)}
+      return `<div style="margin-top:10px">${caja('Hándicap exacto', h.toFixed(1), false)}</div>
+        <div class="grid3" style="margin-top:10px">
           ${caja('Juego Norte', hcpJuego(h, cN) ?? '—', j.recorrido === 'Norte')}
           ${caja('Juego Sur',  hcpJuego(h, cS) ?? '—', j.recorrido === 'Sur')}
+          ${caja('Juego Mixto', hcpJuego(h, cM) ?? '—', j.recorrido === 'Mixto')}
         </div>
-        <p class="small muted" style="margin:10px 0 0">Barras ${esc(j.barras)}. Se muestran los dos recorridos
-        por si hubiera cambio de campo a última hora.</p>`;
+        <p class="small muted" style="margin:10px 0 0">Barras ${esc(j.barras)}. Se muestran los tres recorridos
+        por si hubiera cambio de campo a última hora. <strong>Mixto</strong> es la media de Norte y Sur,
+        para las jornadas que juegan nueve hoyos de cada uno.</p>`;
     })() : `<div class="small muted">Elige tu nombre arriba para verlo.</div>`}
   </div>
 
@@ -504,7 +507,7 @@ function htmlEvolucion(){
 
 function htmlHcpActuales(){
   const j = proximaJornada();
-  const norte = campoDe('Norte','Rojas'), sur = campoDe('Sur','Rojas');
+  const norte = campoDe('Norte','Rojas'), sur = campoDe('Sur','Rojas'), mixto = campoDe('Mixto','Rojas');
   const activas = S.jugadoras.filter(x => x.activa);
 
   return `
@@ -521,17 +524,19 @@ function htmlHcpActuales(){
     <table class="sheet">
       <thead><tr>
         <th>Jugadora</th><th class="num">Exacto</th>
-        <th class="num">Juego Norte</th><th class="num">Juego Sur</th>
+        <th class="num">Norte</th><th class="num">Sur</th><th class="num">Mixto</th>
       </tr></thead>
       <tbody>
       ${activas.map(p => {
         const h = Number(p.hcp_exacto);
-        const esN = j && j.recorrido === 'Norte', esS = j && j.recorrido === 'Sur';
+        const esN = j && j.recorrido === 'Norte', esS = j && j.recorrido === 'Sur',
+              esM = j && j.recorrido === 'Mixto';
         return `<tr class="${S.yo&&p.id===S.yo.id?'yo':''}">
           <td class="name">${esc(corto(p))}</td>
           <td class="num mono">${h.toFixed(1)}</td>
           <td class="num mono" style="${esN?'font-weight:600':'color:var(--muted)'}">${hcpJuego(h,norte)??'—'}</td>
           <td class="num mono" style="${esS?'font-weight:600':'color:var(--muted)'}">${hcpJuego(h,sur)??'—'}</td>
+          <td class="num mono" style="${esM?'font-weight:600':'color:var(--muted)'}">${hcpJuego(h,mixto)??'—'}</td>
         </tr>`;
       }).join('')}
       </tbody>
@@ -545,7 +550,8 @@ function htmlHcpActuales(){
         <td class="num mono">${Number(c.cr).toFixed(1)}</td><td class="num mono">${c.slope}</td>
         <td class="num mono">${c.par}</td></tr>`).join('')}</tbody>
     </table>
-    <p class="small muted" style="margin-top:12px">Hándicap de juego = exacto × (slope ÷ 113) + (CR − par), redondeado al entero.</p>
+    <p class="small muted" style="margin-top:12px">Hándicap de juego = exacto × (slope ÷ 113) + (CR − par), redondeado al entero.
+    El recorrido <strong>Mixto</strong> es la media de Norte y Sur, y se usa las jornadas que juegan nueve hoyos de cada campo.</p>
   </div></details>
 
   <details class="acc"><summary>Cómo se revisan los hándicaps</summary><div>
@@ -597,6 +603,7 @@ function htmlTarjetas(){
           <option value="" ${!j.recorrido?'selected':''}>Sin fijar</option>
           <option value="Norte" ${j.recorrido==='Norte'?'selected':''}>Norte</option>
           <option value="Sur" ${j.recorrido==='Sur'?'selected':''}>Sur</option>
+          <option value="Mixto" ${j.recorrido==='Mixto'?'selected':''}>Mixto (9+9)</option>
         </select>
       </div>
     </div>
@@ -1083,6 +1090,7 @@ function vAdmin(){
           <option value="" ${!x.recorrido?'selected':''}>Sin fijar</option>
           <option value="Norte" ${x.recorrido==='Norte'?'selected':''}>Norte</option>
           <option value="Sur" ${x.recorrido==='Sur'?'selected':''}>Sur</option>
+          <option value="Mixto" ${x.recorrido==='Mixto'?'selected':''}>Mixto (9+9)</option>
         </select>
         <select style="flex:1;min-width:130px" onchange="editarJornada('${esc(x.id)}','estado',this.value)">
           <option value="abierta" ${x.estado==='abierta'?'selected':''}>Inscripción abierta</option>
