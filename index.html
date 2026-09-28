@@ -366,11 +366,6 @@ function vJornada(){
   const cierre = cierreDe(j);
   const campo = campoDe(j.recorrido, j.barras);
 
-  const chipRec = j.recorrido
-    ? `<span class="chip ${j.recorrido==='Norte'?'norte':(j.recorrido==='Sur'?'sur':'mixta')}">Campo ${j.recorrido}</span>
-       <span class="chip">Barras ${esc(j.barras)}</span>`
-    : `<span class="chip">Recorrido por confirmar</span>`;
-
   let accion;
   if (!S.yo){
     accion = `<button class="btn wide ghost" onclick="elegirJugadora()">Dime quién eres para apuntarte</button>`;
@@ -390,8 +385,7 @@ function vJornada(){
   <div class="card hero">
     <div class="eyebrow">${esc(j.id)} · Temporada ${esc(j.temporada)}</div>
     <div class="fecha">${fechaLarga(j.fecha)}</div>
-    <div style="margin:12px 0 4px">${chipRec}</div>
-    <div class="muted small" style="margin-top:10px">
+    <div class="muted small" style="margin-top:12px">
       ${abierta ? `Inscripciones abiertas hasta el ${DIAS[cierre.getDay()]} ${cierre.getDate()} a las ${String(cierre.getHours()).padStart(2,'0')}:${String(cierre.getMinutes()).padStart(2,'0')}`
                 : 'Inscripciones cerradas'}
     </div>
@@ -422,9 +416,9 @@ function vJornada(){
           ${caja('Juego Sur',  hcpJuego(h, cS) ?? '—', j.recorrido === 'Sur')}
           ${caja('Juego Mixto', hcpJuego(h, cM) ?? '—', j.recorrido === 'Mixto')}
         </div>
-        <p class="small muted" style="margin:10px 0 0">Barras ${esc(j.barras)}. Se muestran los tres recorridos
-        por si hubiera cambio de campo a última hora. <strong>Mixto</strong> es la media de Norte y Sur,
-        para las jornadas que juegan nueve hoyos de cada uno.</p>`;
+        <p class="small muted" style="margin:10px 0 0">Se muestran los tres recorridos porque el campo
+        suele confirmarse a última hora. <strong>Mixto</strong> es la media de Norte y Sur, para las jornadas
+        que juegan nueve hoyos de cada uno.</p>`;
     })() : `<div class="small muted">Elige tu nombre arriba para verlo.</div>`}
   </div>
 
