@@ -290,14 +290,28 @@ function cierreDe(j){
 const inscripcionAbierta = j => j.estado === 'abierta' && new Date() < cierreDe(j);
 const suspendida = j => j.estado === 'suspendida';
 
+/** Fecha de hoy en horario local, no en UTC. */
+function hoyISO(){
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+/** La jornada que toca: ni suspendida ni ya procesada. */
 function proximaJornada(){
-  const hoy = new Date().toISOString().slice(0,10);
-  return S.jornadas.find(j => j.fecha >= hoy && !suspendida(j))
+  const hoy = hoyISO();
+  const viva = j => !suspendida(j) && j.estado !== 'procesada';
+  return S.jornadas.find(j => j.fecha >= hoy && viva(j))
+      || S.jornadas.filter(viva).pop()
       || S.jornadas.filter(j => !suspendida(j)).pop() || null;
+}
+/** La jornada que interesa al subir tarjetas: la última ya jugada. */
+function jornadaDeTarjetas(){
+  const hoy = hoyISO();
+  const jugadas = S.jornadas.filter(j => !suspendida(j) && j.fecha <= hoy);
+  return jugadas.length ? jugadas[jugadas.length-1] : proximaJornada();
 }
 /** Jornadas suspendidas que quedan por delante de la próxima que se juega. */
 function suspendidasProximas(){
-  const hoy = new Date().toISOString().slice(0,10);
+  const hoy = hoyISO();
   const prox = proximaJornada();
   return S.jornadas.filter(j => suspendida(j) && j.fecha >= hoy && (!prox || j.fecha <= prox.fecha));
 }
@@ -574,8 +588,8 @@ function htmlTarjetas(){
   const lista = S.jornadas.filter(x => x.estado !== 'suspendida');
   if (!lista.length) return `<div class="note">Aún no hay calendario.</div>`;
   if (!S.jTarj || !lista.some(x=>x.id===S.jTarj)){
-    const prox = proximaJornada();
-    S.jTarj = (prox && lista.some(x=>x.id===prox.id)) ? prox.id : lista[lista.length-1].id;
+    const ref = jornadaDeTarjetas();
+    S.jTarj = (ref && lista.some(x=>x.id===ref.id)) ? ref.id : lista[lista.length-1].id;
   }
   const j = S.jornadas.find(x => x.id === S.jTarj);
   const campo = campoDe(j.recorrido, j.barras);
