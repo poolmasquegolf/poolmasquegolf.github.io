@@ -27,7 +27,7 @@
 }
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
-body{ 
+body{
   background:var(--paper);
   color:var(--ink);
   font-family:'Instrument Sans',system-ui,-apple-system,sans-serif;
@@ -1233,10 +1233,27 @@ async function editarJornada(id, campo, valor){
   aviso('Guardado');
 }
 async function borrarJornada(id){
+  const j = S.jornadas.find(x => x.id === id);
+  const revisada = S.historial.some(h => h.jornada === id);
+
+  // Una jornada procesada no se puede borrar: los hándicaps ya revisados
+  // se quedarían alterados sin rastro de por qué.
+  if (revisada || (j && j.estado === 'procesada')){
+    alert(`La jornada ${id} ya está procesada y no se puede quitar.\n\n` +
+      `Sus tarjetas han modificado los hándicaps de las jugadoras. Si la borrases, ` +
+      `esos hándicaps se quedarían cambiados sin ninguna forma de saber por qué ni de deshacerlo.\n\n` +
+      `Si no se llegó a jugar, márcala como «Suspendida (festivo)»: desaparece de las inscripciones ` +
+      `y no cuenta para la general, pero el historial se conserva.`);
+    return;
+  }
+
   const insc = S.inscripciones.filter(i => i.jornada === id).length;
   const tarj = S.tarjetas.filter(t => t.jornada === id).length;
-  const extra = (insc || tarj) ? `\n\nSe borrarán también ${insc} inscripciones y ${tarj} tarjetas.` : '';
-  if (!confirm(`¿Quitar la jornada ${id} del calendario?${extra}`)) return;
+  const extra = (insc || tarj)
+    ? `\n\nSe borrarán también ${insc} inscripciones y ${tarj} tarjetas. Esto no tiene vuelta atrás.`
+    : '';
+  if (!confirm(`¿Quitar la jornada ${id} del calendario?${extra}\n\n` +
+      `Si lo que pasa es que no se juega ese día, cancela y márcala como suspendida.`)) return;
   const { error } = await db.from('jornadas').delete().eq('id', id);
   if (error) return aviso('No se pudo eliminar', 'err');
   await cargar(); render(); aviso('Jornada eliminada');
